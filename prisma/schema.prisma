@@ -1,0 +1,432 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+
+enum Role { USER ADMIN }
+enum Badge { NONE VERIFIED PREMIUM PREMIUM_PLUS OFFICIAL }
+enum KycStatus { NONE PENDING VERIFIED REJECTED }
+enum ListingType { DIGITAL TOPUP SERVICE ACCOUNT }
+enum ListingStatus { DRAFT ACTIVE SOLD DELETED }
+enum OrderStatus { PENDING_PAYMENT PAID IN_PROGRESS DELIVERED COMPLETED CANCELLED DISPUTED REFUNDED }
+enum PaymentStatus { PENDING VERIFIED FAILED }
+enum SubscriptionTier { PREMIUM PREMIUM_PLUS }
+enum SubscriptionStatus { PENDING ACTIVE EXPIRED CANCELLED }
+enum PayoutStatus { PENDING SENT REJECTED }
+
+model User {
+ id String @id @default(cuid())
+ email String @unique
+ passwordHash String?
+ onboardingRequired Boolean @default(false)
+ name String
+ username String @unique
+ bio String @default("")
+ imageUrl String?
+ role Role @default(USER)
+ badge Badge @default(NONE)
+ kycStatus KycStatus @default(NONE)
+ phone String?
+ phonePublic Boolean @default(false)
+ lastLoginAt DateTime?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ settings UserSettings?
+ posts Post[]
+ listings Listing[]
+ orders Order[] @relation("BuyerOrders")
+ sales Order[] @relation("SellerOrders")
+ subscriptions Subscription[]
+ payments Payment[]
+ payouts Payout[]
+ followers Follow[] @relation("Followers")
+ following Follow[] @relation("Following")
+ blocksFrom Block[] @relation("BlockFrom")
+ blocksTo Block[] @relation("BlockTo")
+ reviewsGiven Review[] @relation("ReviewAuthor")
+ reviewsReceived Review[] @relation("ReviewSeller")
+ notifications Notification[]
+ kycSubmissions KycSubmission[]
+ payoutMethods PayoutMethod[]
+ storeOrders StoreOrder[]
+ downloadGrants DownloadGrant[]
+ auditLogs AuditLog[]
+ reportsMade PlatformReport[]
+ sellerReports SellerReport[]
+ adminChallenges AdminChallenge[]
+ sentMessages Message[] @relation("Sender")
+ receivedMessages Message[] @relation("Receiver")
+ sentMessageRequests MessageRequest[] @relation("RequestSender")
+ receivedMessageRequests MessageRequest[] @relation("RequestReceiver")
+ postComments PostComment[]
+
+ @@index([username])
+ @@index([role])
+}
+
+model UserSettings {
+ id String @id @default(cuid())
+ userId String @unique
+ messagePrivacy String @default("everyone")
+ followPrivacy String @default("everyone")
+ showLastSeen Boolean @default(false)
+ notificationsEnabled Boolean @default(true)
+ theme String @default("system")
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+}
+
+model Follow {
+ id String @id @default(cuid())
+ followerId String
+ followingId String
+ createdAt DateTime @default(now())
+ follower User @relation("Following", fields:[followerId], references:[id], onDelete:Cascade)
+ following User @relation("Followers", fields:[followingId], references:[id], onDelete:Cascade)
+ @@unique([followerId, followingId])
+}
+
+model Block {
+ id String @id @default(cuid())
+ blockerId String
+ blockedId String
+ createdAt DateTime @default(now())
+ blocker User @relation("BlockFrom", fields:[blockerId], references:[id], onDelete:Cascade)
+ blocked User @relation("BlockTo", fields:[blockedId], references:[id], onDelete:Cascade)
+ @@unique([blockerId, blockedId])
+}
+
+model Post {
+ id String @id @default(cuid())
+ authorId String
+ text String @db.Text
+ imageUrl String?
+ expiresAt DateTime
+ createdAt DateTime @default(now())
+ author User @relation(fields:[authorId], references:[id], onDelete:Cascade)
+ likes PostLike[]
+ comments PostComment[]
+ @@index([expiresAt])
+}
+
+model PostLike {
+ id String @id @default(cuid())
+ postId String
+ userId String
+ createdAt DateTime @default(now())
+ post Post @relation(fields:[postId], references:[id], onDelete:Cascade)
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+ @@unique([postId, userId])
+}
+
+model Listing {
+ id String @id @default(cuid())
+ sellerId String
+ type ListingType
+ title String
+ description String @db.Text
+ category String
+ price Int
+ status ListingStatus @default(ACTIVE)
+ image1Url String?
+ image2Url String?
+ image3Url String?
+ digitalObjectKey String?
+ deliveryMinutes Int?
+ phoneShown Boolean @default(false)
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ soldAt DateTime?
+ seller User @relation(fields:[sellerId], references:[id], onDelete:Cascade)
+ orders Order[]
+ reviews Review[]
+ reports ListingReport[]
+ @@index([sellerId, status])
+ @@index([category, status])
+}
+
+model ListingReport {
+ id String @id @default(cuid())
+ listingId String
+ reason String
+ createdAt DateTime @default(now())
+ listing Listing @relation(fields:[listingId], references:[id], onDelete:Cascade)
+}
+
+model SellerReport {
+ id String @id @default(cuid())
+ sellerId String
+ reason String
+ createdAt DateTime @default(now())
+ seller User @relation(fields:[sellerId], references:[id], onDelete:Cascade)
+}
+
+model Order {
+ id String @id @default(cuid())
+ buyerId String
+ sellerId String
+ listingId String
+ amount Int
+ status OrderStatus @default(PENDING_PAYMENT)
+ createdAt DateTime @default(now())
+ paidAt DateTime?
+ deliveredAt DateTime?
+ buyerConfirmedAt DateTime?
+ protectionExpiresAt DateTime?
+ completedAt DateTime?
+ buyer User @relation("BuyerOrders", fields:[buyerId], references:[id], onDelete:Cascade)
+ seller User @relation("SellerOrders", fields:[sellerId], references:[id], onDelete:Cascade)
+ listing Listing @relation(fields:[listingId], references:[id], onDelete:Restrict)
+ payments Payment[]
+ @@index([buyerId, createdAt])
+ @@index([sellerId, status])
+}
+
+model Payment {
+ id String @id @default(cuid())
+ userId String
+ orderId String?
+ subscriptionId String?
+ storeOrderId String?
+ amount Int
+ provider String
+ transactionRef String @unique
+ status PaymentStatus @default(PENDING)
+ payerName String?
+ error String?
+ createdAt DateTime @default(now())
+ verifiedAt DateTime?
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+ order Order? @relation(fields:[orderId], references:[id], onDelete:SetNull)
+ subscription Subscription? @relation(fields:[subscriptionId], references:[id], onDelete:SetNull)
+ storeOrder StoreOrder? @relation(fields:[storeOrderId], references:[id], onDelete:SetNull)
+ @@index([userId, createdAt])
+}
+
+model Subscription {
+ id String @id @default(cuid())
+ userId String
+ tier SubscriptionTier
+ status SubscriptionStatus @default(PENDING)
+ durationDays Int
+ price Int
+ startsAt DateTime
+ endsAt DateTime
+ giftedByAdmin Boolean @default(false)
+ giftedByUserId String?
+ createdAt DateTime @default(now())
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+ payments Payment[]
+ @@index([userId, endsAt])
+}
+
+model Review {
+ id String @id @default(cuid())
+ listingId String
+ authorId String
+ sellerId String
+ stars Int
+ comment String @db.Text
+ createdAt DateTime @default(now())
+ listing Listing @relation(fields:[listingId], references:[id], onDelete:Cascade)
+ author User @relation("ReviewAuthor", fields:[authorId], references:[id], onDelete:Cascade)
+ seller User @relation("ReviewSeller", fields:[sellerId], references:[id], onDelete:Cascade)
+ @@unique([listingId, authorId])
+}
+
+model Payout {
+ id String @id @default(cuid())
+ userId String
+ amount Int
+ method String
+ accountMasked String
+ status PayoutStatus @default(PENDING)
+ reference String?
+ reason String?
+ createdAt DateTime @default(now())
+ sentAt DateTime?
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+}
+
+model Message {
+ id String @id @default(cuid())
+ senderId String
+ receiverId String
+ text String @db.Text
+ createdAt DateTime @default(now())
+ sender User @relation("Sender", fields:[senderId], references:[id], onDelete:Cascade)
+ receiver User @relation("Receiver", fields:[receiverId], references:[id], onDelete:Cascade)
+ @@index([senderId, receiverId, createdAt])
+}
+
+model Notification {
+ id String @id @default(cuid())
+ userId String
+ title String
+ body String
+ readAt DateTime?
+ createdAt DateTime @default(now())
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+ @@index([userId, createdAt])
+}
+
+model SiteSettings {
+ id String @id @default("global")
+ tiktokUrl String @default("")
+ emailUrl String @default("mailto:muhdinnovel@gmail.com")
+ phoneNumber String @default("")
+ telegramUrl String @default("")
+ supportEmail String @default("muhdinnovel@gmail.com")
+ updatedAt DateTime @updatedAt
+}
+
+
+enum ReportStatus { OPEN REVIEWED DISMISSED ACTIONED }
+
+enum DownloadStatus { ACTIVE EXPIRED REVOKED USED }
+
+enum KycDocumentType { FAYDA PASSPORT KEBELE_ID DRIVING_LICENCE }
+
+enum StoreOrderStatus { PENDING_PAYMENT PAID PROCESSING COMPLETED CANCELLED FLAGGED REFUNDED }
+
+model KycSubmission {
+ id String @id @default(cuid())
+ userId String
+ documentType KycDocumentType
+ documentObjectKey String
+ selfieObjectKey String
+ phoneNumber String
+ status KycStatus @default(PENDING)
+ rejectionReason String?
+ reviewedAt DateTime?
+ createdAt DateTime @default(now())
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+ @@index([userId, status])
+}
+
+model PayoutMethod {
+ id String @id @default(cuid())
+ userId String
+ method String
+ accountName String
+ accountNumber String
+ verified Boolean @default(false)
+ createdAt DateTime @default(now())
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+ @@index([userId])
+}
+
+model DiscountCode {
+ id String @id @default(cuid())
+ code String @unique
+ type String
+ value Int
+ expiresAt DateTime?
+ usageLimit Int?
+ usedCount Int @default(0)
+ active Boolean @default(true)
+ productId String?
+ createdAt DateTime @default(now())
+ storeProduct StoreProduct? @relation(fields:[productId], references:[id], onDelete:SetNull)
+}
+
+model StoreProduct {
+ id String @id @default(cuid())
+ title String
+ description String @db.Text
+ category String
+ price Int
+ active Boolean @default(true)
+ imageUrl String?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ discounts DiscountCode[]
+ storeOrders StoreOrder[]
+ @@index([category, active])
+}
+
+model StoreOrder {
+ id String @id @default(cuid())
+ userId String
+ productId String
+ amount Int
+ status StoreOrderStatus @default(PENDING_PAYMENT)
+ createdAt DateTime @default(now())
+ completedAt DateTime?
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+ product StoreProduct @relation(fields:[productId], references:[id], onDelete:Restrict)
+ payments Payment[]
+ @@index([userId, createdAt])
+}
+
+model DownloadGrant {
+ id String @id @default(cuid())
+ userId String
+ listingId String
+ tokenHash String @unique
+ expiresAt DateTime
+ deviceFingerprintHash String
+ used Boolean @default(false)
+ createdAt DateTime @default(now())
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+ listing Listing @relation(fields:[listingId], references:[id], onDelete:Restrict)
+ @@index([userId, listingId, expiresAt])
+}
+
+model AuditLog {
+ id String @id @default(cuid())
+ actorUserId String?
+ action String
+ targetType String
+ targetId String?
+ metadataJson String? @db.Text
+ createdAt DateTime @default(now())
+ actor User? @relation(fields:[actorUserId], references:[id], onDelete:SetNull)
+ @@index([createdAt])
+ @@index([action])
+}
+
+model PlatformReport {
+ id String @id @default(cuid())
+ reporterId String
+ targetType String
+ targetId String
+ reason String
+ status ReportStatus @default(OPEN)
+ createdAt DateTime @default(now())
+ reporter User @relation(fields:[reporterId], references:[id], onDelete:Cascade)
+ @@index([targetType, targetId, status])
+}
+
+model AdminChallenge {
+ id String @id @default(cuid())
+ userId String
+ codeHash String
+ expiresAt DateTime
+ attempts Int @default(0)
+ usedAt DateTime?
+ createdAt DateTime @default(now())
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+ @@index([userId, expiresAt])
+}
+
+model MessageRequest {
+ id String @id @default(cuid())
+ senderId String
+ receiverId String
+ status String @default("PENDING")
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ sender User @relation("RequestSender", fields:[senderId], references:[id], onDelete:Cascade)
+ receiver User @relation("RequestReceiver", fields:[receiverId], references:[id], onDelete:Cascade)
+ @@unique([senderId, receiverId])
+ @@index([receiverId, status])
+}
+
+model PostComment {
+ id String @id @default(cuid())
+ postId String
+ authorId String
+ text String @db.Text
+ createdAt DateTime @default(now())
+ post Post @relation(fields:[postId], references:[id], onDelete:Cascade)
+ author User @relation(fields:[authorId], references:[id], onDelete:Cascade)
+ @@index([postId, createdAt])
+}

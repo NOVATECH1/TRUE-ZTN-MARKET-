@@ -1,0 +1,5 @@
+import {NextResponse} from 'next/server'
+import {z} from 'zod'
+import {db} from '@/lib/db'
+import {requireAdmin} from '@/lib/security'
+export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){try{await requireAdmin();const {id}=await params;const raw=await req.text(); const source=raw?(()=>{try{return JSON.parse(raw)}catch{return Object.fromEntries(new URLSearchParams(raw))}})():{}; const b=z.object({decision:z.enum(['SENT','REJECTED']),reference:z.string().max(120).optional(),reason:z.string().max(500).optional()}).parse(source);const p=await db.payout.update({where:{id},data:{status:b.decision,reference:b.reference??null,reason:b.reason??null,sentAt:b.decision==='SENT'?new Date():null}});await db.notification.create({data:{userId:p.userId,title:`Payout ${b.decision==='SENT'?'sent':'rejected'}`,body:b.decision==='SENT'?`Your payout of ${p.amount} ETB was marked sent.`:(b.reason||'Your payout request was rejected.')}});return NextResponse.json(p)}catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Unable to update payout'},{status:400})}}

@@ -1,0 +1,3 @@
+import {auth} from '@/auth'
+import {redirect} from 'next/navigation'
+export default async function Admin2FA(){const s=await auth();if(!s?.user?.id)redirect('/login');return <main className="section wrap"><div className="card" style={{maxWidth:520,margin:'40px auto'}}><h1>Admin verification</h1><p className="muted">A verification code is sent to the ZTN Official admin email.</p><div className="row"><form action="/api/admin/2fa/request" method="post"><button className="btn">Send code</button></form><form action="/api/admin/2fa/verify" method="post" className="row"><input name="code" inputMode="numeric" pattern="[0-9]{6}" placeholder="6-digit code" required/><button className="btn primary">Verify</button></form></div></div></main>}

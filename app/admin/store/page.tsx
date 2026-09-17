@@ -1,0 +1,6 @@
+import Link from 'next/link'
+import {auth} from '@/auth'
+import {db} from '@/lib/db'
+import {adminTwoFactorOk} from '@/lib/admin-2fa'
+import {AdminStoreForm} from '@/components/admin-store-form'
+export default async function AdminStore(){const s=await auth();if(!s?.user?.id)return <main className="section wrap"><div className="card"><h1>Store admin</h1><Link className="btn primary" href="/login">Sign in</Link></div></main>;const a=await db.user.findUnique({where:{id:s.user.id}});if(a?.role!=='ADMIN')return <main className="section wrap"><div className="card"><h1>Access denied</h1></div></main>;if(!(await adminTwoFactorOk(a.id)))return <main className="section wrap"><div className="card"><Link className="btn primary" href="/admin/2fa">Verify device</Link></div></main>;const products=await db.storeProduct.findMany({orderBy:{createdAt:'desc'}});return <main className="section wrap"><h1>Official Store</h1><AdminStoreForm/><div className="grid" style={{marginTop:18}}>{products.map(p=><div className="card" key={p.id}><h3>{p.title}</h3><div className="price">{p.price} ETB</div><p className="muted">{p.category}</p><div className="small">{p.active?'Active':'Inactive'}</div></div>)}</div></main>}

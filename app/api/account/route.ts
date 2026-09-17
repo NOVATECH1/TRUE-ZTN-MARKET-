@@ -1,0 +1,6 @@
+import {NextResponse} from 'next/server'
+import {z} from 'zod'
+import {db} from '@/lib/db'
+import {requireUser} from '@/lib/security'
+export async function PATCH(req:Request){try{const me=await requireUser();const b=z.object({name:z.string().trim().min(2).max(80).optional(),username:z.string().regex(/^[A-Za-z0-9_.]{3,30}$/).optional(),bio:z.string().max(1000).optional(),imageUrl:z.string().url().nullable().optional(),onboardingComplete:z.boolean().optional()}).parse(await req.json());if(b.username&&b.username!==me.username){const taken=await db.user.findFirst({where:{username:b.username,id:{not:me.id}}});if(taken)return NextResponse.json({error:'Username already exists'},{status:409})}const data={...b};delete (data as Record<string,unknown>).onboardingComplete;if(b.onboardingComplete)data.onboardingRequired=false;const u=await db.user.update({where:{id:me.id},data});return NextResponse.json({name:u.name,bio:u.bio,imageUrl:u.imageUrl})}catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Unable to update account'},{status:400})}}
+export async function DELETE(){try{const me=await requireUser();await db.user.delete({where:{id:me.id}});return NextResponse.json({ok:true})}catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Unable to delete account'},{status:400})}}

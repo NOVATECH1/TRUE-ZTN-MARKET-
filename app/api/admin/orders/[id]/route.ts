@@ -1,0 +1,5 @@
+import {NextResponse} from 'next/server'
+import {z} from 'zod'
+import {db} from '@/lib/db'
+import {requireAdmin} from '@/lib/security'
+export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){try{await requireAdmin();const {id}=await params;const raw=await req.text(); const source=raw?(()=>{try{return JSON.parse(raw)}catch{const o=Object.fromEntries(new URLSearchParams(raw)); if(o.refundAmount) o.refundAmount=Number(o.refundAmount); return o}})():{}; const b=z.object({action:z.enum(['PROCESS','COMPLETE','CANCEL','REFUND']),refundAmount:z.number().int().nonnegative().optional()}).parse(source);const o=await db.storeOrder.findUnique({where:{id}});if(!o)return NextResponse.json({error:'Order not found'},{status:404});const map={PROCESS:'PROCESSING',COMPLETE:'COMPLETED',CANCEL:'CANCELLED',REFUND:'REFUNDED'} as const;const updated=await db.storeOrder.update({where:{id},data:{status:map[b.action],completedAt:b.action==='COMPLETE'?new Date():undefined}});return NextResponse.json(updated)}catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Unable to update order'},{status:400})}}
