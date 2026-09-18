@@ -1,22 +1,7 @@
-```tsx
 import Link from 'next/link'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { adminTwoFactorOk } from '@/lib/admin-2fa'
-import type { Prisma } from '@prisma/client'
-
-type KycRow = Prisma.KycSubmissionGetPayload<{
-  include: {
-    user: {
-      select: {
-        name: true
-        username: true
-        email: true
-        phone: true
-      }
-    }
-  }
-}>
 
 export default async function AdminKyc() {
   const s = await auth()
@@ -81,7 +66,7 @@ export default async function AdminKyc() {
       <h1>Pending KYC</h1>
 
       <div className="grid" style={{ marginTop: 18 }}>
-        {rows.map((x: KycRow) => (
+        {rows.map((x) => (
           <div className="card" key={x.id}>
             <h3>{x.user.name}</h3>
 
@@ -93,7 +78,10 @@ export default async function AdminKyc() {
             <p>Phone: {x.phoneNumber}</p>
 
             <div className="row">
-              <form action={`/api/admin/kyc/${x.id}`} method="post">
+              <form
+                action={`/api/admin/kyc/${x.id}`}
+                method="post"
+              >
                 <input
                   type="hidden"
                   name="decision"
@@ -104,15 +92,18 @@ export default async function AdminKyc() {
                 </button>
               </form>
 
-              <form action={`/api/admin/kyc/${x.id}`} method="post">
+              <form
+                action={`/api/admin/kyc/${x.id}`}
+                method="post"
+              >
+                <input
+                  name="reason"
+                  placeholder="Rejection reason"
+                />
                 <input
                   type="hidden"
                   name="decision"
                   value="REJECTED"
-                />
-                <input
-                  name="reason"
-                  placeholder="Rejection reason"
                 />
                 <button className="btn">
                   Reject
@@ -125,4 +116,3 @@ export default async function AdminKyc() {
     </main>
   )
 }
-```
