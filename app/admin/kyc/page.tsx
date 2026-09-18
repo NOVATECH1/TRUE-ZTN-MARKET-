@@ -66,7 +66,7 @@ export default async function AdminKyc() {
       <h1>Pending KYC</h1>
 
       <div className="grid" style={{ marginTop: 18 }}>
-        {rows.map((x) => (
+        {rows.map((x: typeof rows[number]) => (
           <div className="card" key={x.id}>
             <h3>{x.user.name}</h3>
 
