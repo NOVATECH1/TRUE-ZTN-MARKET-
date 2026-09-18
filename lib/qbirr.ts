@@ -21,7 +21,7 @@ export async function verifyQbirr(input: { provider: string; ref: string; amount
 
   const key = process.env.QBIRR_API_KEY
   const receiverName = process.env.QBIRR_RECEIVER_NAME
-  const receiverAccount = process.env.QBIRR_RECEIVER_ACCOUNT
+  const receiverAccount = process.env.QBIRR_CBE_ACCOUNT=1000749693968 QBIRR_TELEBIRR_ACCOUNT=+251911053464
   if (!key || !receiverName || !receiverAccount) throw new Error('qBirr environment is not fully configured')
 
   const response = await fetch(`${process.env.QBIRR_BASE_URL ?? 'https://verify.qbirr.com'}/api/v1/verify`, {
